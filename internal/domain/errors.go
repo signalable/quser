@@ -14,4 +14,8 @@ var (
 
 	// 검증 관련 에러
 	ErrEmailVerification = errors.New("이메일 검증에 실패했습니다")
+
+	// 인증 관련 에러
+	ErrLogoutFailed = errors.New("로그아웃 처리에 실패했습니다")
+	ErrInvalidToken = errors.New("잘못된 토큰입니다")
 )

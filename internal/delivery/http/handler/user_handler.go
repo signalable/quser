@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/signalable/quser/internal/domain"
@@ -148,20 +149,33 @@ func (h *UserHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 // Logout 로그아웃 핸들러
 func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	token := r.Header.Get("Authorization")
-	if token == "" {
-		http.Error(w, "토큰이 없습니다", http.StatusUnauthorized)
+	// "Bearer " 접두사 확인 및 제거
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		http.Error(w, "Authorization 헤더가 필요합니다", http.StatusUnauthorized)
 		return
 	}
 
-	// "Bearer " 접두사 제거
-	tokenString := token[7:]
-
-	if err := h.userUseCase.Logout(r.Context(), tokenString); err != nil {
-		http.Error(w, "로그아웃 처리 중 오류가 발생했습니다", http.StatusInternalServerError)
+	parts := strings.Split(auth, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		http.Error(w, "잘못된 Authorization 형식입니다", http.StatusUnauthorized)
 		return
 	}
 
+	token := parts[1]
+	if err := h.userUseCase.Logout(r.Context(), token); err != nil {
+		switch err {
+		case domain.ErrInvalidToken:
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+		case domain.ErrLogoutFailed:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		default:
+			http.Error(w, "내부 서버 오류", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "로그아웃되었습니다",

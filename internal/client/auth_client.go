@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/signalable/quser/internal/domain"
 )
 
 type AuthClient struct {
@@ -124,7 +126,10 @@ func (c *AuthClient) RevokeToken(ctx context.Context, token string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("토큰 폐기 실패: %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusUnauthorized {
+			return domain.ErrInvalidToken
+		}
+		return domain.ErrLogoutFailed
 	}
 
 	return nil

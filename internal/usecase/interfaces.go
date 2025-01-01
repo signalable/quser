@@ -22,6 +22,6 @@ type UserUseCase interface {
 	GetUserStatus(ctx context.Context, userID string) (string, error)
 	// 이메일로 사용자 찾기
 	FindByEmail(ctx context.Context, email string) (*domain.UserResponse, error)
-	// 로그아웃웃
+	// 로그아웃
 	Logout(ctx context.Context, token string) error
 }

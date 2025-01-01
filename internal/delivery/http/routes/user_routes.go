@@ -17,7 +17,8 @@ func SetupUserRoutes(
 	router.HandleFunc("/api/users/login", userHandler.Login).Methods("POST")
 
 	// 인증이 필요한 라우트
-	router.HandleFunc("/api/users/logout", authMiddleware.Authenticate(userHandler.Logout)).Methods("POST")
+	router.HandleFunc("/api/users/logout", userHandler.Logout).Methods("POST")
 	router.HandleFunc("/api/users/{id}/profile", authMiddleware.Authenticate(userHandler.GetProfile)).Methods("GET")
 	router.HandleFunc("/api/users/{id}/profile", authMiddleware.Authenticate(userHandler.UpdateProfile)).Methods("PUT")
+
 }
