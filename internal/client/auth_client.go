@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,6 +15,13 @@ type AuthClient struct {
 
 type AuthResponse struct {
 	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int64  `json:"expires_in"`
+}
+
+type TokenValidationResponse struct {
+	Valid  bool   `json:"valid"`
+	UserID string `json:"user_id"`
 }
 
 // NewAuthClient Auth 클라이언트 생성자
@@ -28,12 +34,45 @@ func NewAuthClient(baseURL string, timeout time.Duration) *AuthClient {
 	}
 }
 
+// CreateToken 토큰 생성 요청
+func (c *AuthClient) CreateToken(ctx context.Context, userID string) (*AuthResponse, error) {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		fmt.Sprintf("%s/api/auth/token", c.baseURL),
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("요청 생성 실패: %w", err)
+	}
+
+	// User ID를 헤더에 추가
+	req.Header.Set("X-User-ID", userID)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("요청 실패: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("토큰 생성 실패: %d", resp.StatusCode)
+	}
+
+	var authResp AuthResponse
+	if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
+		return nil, fmt.Errorf("응답 파싱 실패: %w", err)
+	}
+
+	return &authResp, nil
+}
+
 // ValidateToken 토큰 검증
 func (c *AuthClient) ValidateToken(ctx context.Context, token string) error {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"GET",
-		fmt.Sprintf("%s/api/auth/validate", c.baseURL),
+		fmt.Sprintf("%s/api/auth/token/validate", c.baseURL),
 		nil,
 	)
 	if err != nil {
@@ -52,48 +91,41 @@ func (c *AuthClient) ValidateToken(ctx context.Context, token string) error {
 		return fmt.Errorf("토큰 검증 실패: %d", resp.StatusCode)
 	}
 
+	var validationResp TokenValidationResponse
+	if err := json.NewDecoder(resp.Body).Decode(&validationResp); err != nil {
+		return fmt.Errorf("응답 파싱 실패: %w", err)
+	}
+
+	if !validationResp.Valid {
+		return fmt.Errorf("유효하지 않은 토큰")
+	}
+
 	return nil
 }
 
-// RequestPasswordHash 비밀번호 해시 요청
-func (c *AuthClient) RequestPasswordHash(ctx context.Context, password string) (string, error) {
-	type hashRequest struct {
-		Password string `json:"password"`
-	}
-
-	payload, err := json.Marshal(hashRequest{Password: password})
-	if err != nil {
-		return "", fmt.Errorf("요청 데이터 직렬화 실패: %w", err)
-	}
-
+// RevokeToken 토큰 폐기 요청
+func (c *AuthClient) RevokeToken(ctx context.Context, token string) error {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"POST",
-		fmt.Sprintf("%s/api/auth/hash", c.baseURL),
-		bytes.NewBuffer(payload),
+		fmt.Sprintf("%s/api/auth/token/revoke", c.baseURL),
+		nil,
 	)
 	if err != nil {
-		return "", fmt.Errorf("요청 생성 실패: %w", err)
+		return fmt.Errorf("요청 생성 실패: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("요청 실패: %w", err)
+		return fmt.Errorf("요청 실패: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("해시 요청 실패: %d", resp.StatusCode)
+		return fmt.Errorf("토큰 폐기 실패: %d", resp.StatusCode)
 	}
 
-	var result struct {
-		Hash string `json:"hash"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("응답 파싱 실패: %w", err)
-	}
-
-	return result.Hash, nil
+	return nil
 }

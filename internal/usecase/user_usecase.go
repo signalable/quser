@@ -37,25 +37,51 @@ func (uc *userUseCase) Register(ctx context.Context, req *domain.RegisterRequest
 		return domain.ErrEmailAlreadyExists
 	}
 
-	// Auth Service에 비밀번호 해시 요청
-	hashedPassword, err := uc.authClient.RequestPasswordHash(ctx, req.Password)
-	if err != nil {
-		return err
-	}
-
 	// 새 사용자 생성
 	user := &domain.User{
-		Email:      req.Email,
-		Password:   hashedPassword,
-		Name:       req.Name,
-		Status:     domain.UserStatusPending,
-		IsVerified: false,
+		Email:  req.Email,
+		Name:   req.Name,
+		Status: domain.UserStatusPending,
 		Profile: &domain.UserProfile{
 			LastLogin: time.Now(),
 		},
 	}
 
-	return uc.userRepo.Create(ctx, user)
+	// 사용자 저장
+	if err := uc.userRepo.Create(ctx, user); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Login 로그인 구현
+func (uc *userUseCase) Login(ctx context.Context, email, password string) (*domain.LoginResponse, error) {
+	// 사용자 조회
+	user, err := uc.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, domain.ErrInvalidCredentials
+	}
+
+	// Auth Service에 토큰 생성 요청
+	authResp, err := uc.authClient.CreateToken(ctx, user.ID.Hex())
+	if err != nil {
+		return nil, err
+	}
+
+	// 로그인 응답 생성
+	return &domain.LoginResponse{
+		AccessToken: authResp.AccessToken,
+		User: &domain.UserResponse{
+			ID:         user.ID.Hex(),
+			Email:      user.Email,
+			Name:       user.Name,
+			Status:     user.Status,
+			IsVerified: user.IsVerified,
+			Profile:    user.Profile,
+			CreatedAt:  user.CreatedAt,
+		},
+	}, nil
 }
 
 // GetProfile 프로필 조회 구현
@@ -144,4 +170,9 @@ func (uc *userUseCase) FindByEmail(ctx context.Context, email string) (*domain.U
 		Profile:    user.Profile,
 		CreatedAt:  user.CreatedAt,
 	}, nil
+}
+
+// Logout 로그아웃 구현
+func (uc *userUseCase) Logout(ctx context.Context, token string) error {
+	return uc.authClient.RevokeToken(ctx, token)
 }

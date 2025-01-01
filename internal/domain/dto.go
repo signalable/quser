@@ -2,14 +2,26 @@ package domain
 
 import "time"
 
-// 회원가입 요청 DTO
+// LoginRequest 로그인 요청 DTO
+type LoginRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
+}
+
+// LoginResponse 로그인 응답 DTO
+type LoginResponse struct {
+	AccessToken string        `json:"access_token"`
+	User        *UserResponse `json:"user"`
+}
+
+// RegisterRequest 회원가입 요청 DTO
 type RegisterRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=8"`
 	Name     string `json:"name" validate:"required"`
 }
 
-// 프로필 업데이트 요청 DTO
+// UpdateProfileRequest 프로필 업데이트 요청 DTO
 type UpdateProfileRequest struct {
 	Name        string `json:"name,omitempty"`
 	PhoneNumber string `json:"phone_number,omitempty"`
@@ -17,7 +29,7 @@ type UpdateProfileRequest struct {
 	Avatar      string `json:"avatar,omitempty"`
 }
 
-// 사용자 응답 DTO
+// UserResponse 사용자 응답 DTO
 type UserResponse struct {
 	ID         string       `json:"id"`
 	Email      string       `json:"email"`
